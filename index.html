@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Proposal Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; }
+        .scrollable-panel { max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: thin; }
+        .scrollable-panel::-webkit-scrollbar { width: 6px; }
+        .scrollable-panel::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        .form-input { width: 100%; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; font-size: 0.8rem; margin-bottom: 0.25rem; transition: border-color 0.2s; }
+        .form-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-label { display: block; font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 0.25rem; }
+
+        /* Mechanic step card in output */
+        .m-step { background: #f8fafc; border-radius: 0.5rem; border-left: 3px solid #3b82f6; padding: 0.6rem 0.75rem; }
+        .m-step-title { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+        .m-step-icon { background: #2563eb; color: white; width: 1.6rem; height: 1.6rem; display: flex; align-items: center; justify-content: center; border-radius: 0.375rem; font-size: 0.7rem; flex-shrink: 0; }
+        .m-arrow { text-align: center; color: #94a3b8; font-size: 0.9rem; margin: 0.15rem 0; }
+
+        /* Tiered layout */
+        .tier-row { display: flex; align-items: center; gap: 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.3rem 0.5rem; margin-bottom: 0.25rem; font-size: 0.72rem; }
+        .tier-badge { background: #dbeafe; color: #1e40af; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 0.25rem; font-size: 0.65rem; flex-shrink: 0; }
+        .tier-cond { color: #475569; flex: 1; }
+        .tier-arrow { color: #94a3b8; font-size: 0.7rem; }
+        .tier-reward { color: #059669; font-weight: 700; }
+
+        /* Branch layout */
+        .branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .branch-card { background: white; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.4rem; font-size: 0.7rem; }
+        .branch-label { font-weight: 700; color: #1e40af; font-size: 0.62rem; text-transform: uppercase; margin-bottom: 0.15rem; }
+        .branch-cond { color: #475569; margin-bottom: 0.2rem; }
+        .branch-reward { color: #059669; font-weight: 700; }
+
+        /* Simple layout */
+        .simple-outcome { font-size: 0.72rem; color: #475569; padding-left: 0.25rem; }
+        .simple-outcome .reward { color: #059669; font-weight: 700; }
+
+        /* Presentation modal */
+        #presModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+        #presModal.active { display: flex; }
+        #presBox { position: relative; width: 100%; max-width: 1600px; aspect-ratio: 16 / 9; }
+        #presStage { position: absolute; inset: 0; background: white; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        #presStage > div { position: absolute; transform-origin: top left; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- ACTION BAR -->
+    <div class="max-w-7xl mx-auto mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-file-invoice text-2xl text-blue-600"></i>
+            <h1 class="text-xl font-bold text-slate-800">Campaign Proposal Builder</h1>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="exportData()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition"><i class="fa-solid fa-download mr-2"></i>Save Template</button>
+            <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer">
+                <i class="fa-solid fa-upload mr-2"></i>Load
+                <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+            </label>
+            <button onclick="openPresentation()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"><i class="fa-solid fa-tv mr-2"></i>Presentation Mode (16:9)</button>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        
+        <!-- LEFT PANEL -->
+        <div class="w-full lg:w-1/3 bg-white p-6 rounded-xl shadow-lg h-fit sticky top-8 scrollable-panel">
+            <h2 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Campaign Details</h2>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="form-label">Campaign Name</label><input type="text" id="campName" class="form-input" value="MY National Day Challenge"></div>
+                <div><label class="form-label">Campaign Period</label><input type="text" id="campPeriod" class="form-input" value="1 Oct 2026 - 31 Oct 2026"></div>
+            </div>
+            <label class="form-label">Objective</label>
+            <textarea id="campObjective" class="form-input h-16" rows="2">Drive FTDs and encourage FTT conversion by creating an engaging, easy-to-join seasonal experience.</textarea>
+            <label class="form-label">Target Group</label>
+            <textarea id="campTarget" class="form-input h-14" rows="2">Global excluding MENA. New and existing unfunded clients.</textarea>
+            <label class="form-label">Safeguard Measures</label>
+            <textarea id="campSafeguard" class="form-input h-14" rows="2">Unfunded clients only. Min margin $50. No hedging. First trade only.</textarea>
+
+            <!-- MECHANICS -->
+            <div class="flex justify-between items-center mt-6 mb-2 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-800">Campaign Mechanics</h2>
+                <button onclick="addMechanicStep()" class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs font-bold hover:bg-blue-200"><i class="fa-solid fa-plus mr-1"></i> Add Step</button>
+            </div>
+            <p class="text-[10px] text-slate-500 mb-3">Choose a structure per step: <b>Simple</b> (1 reward), <b>Tiered</b> (progressive levels), <b>Branch</b> (parallel options).</p>
+            <div id="mechanicStepsContainer" class="space-y-3 mb-6"></div>
+
+            <!-- COST BREAKDOWN -->
+            <div class="flex justify-between items-center mt-6 mb-2 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-800">Cost Breakdown</h2>
+                <button onclick="addCostItem()" class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded text-xs font-bold hover:bg-emerald-200"><i class="fa-solid fa-plus mr-1"></i> Add Cost</button>
+            </div>
+            <div id="costItemsContainer" class="space-y-2 mb-3"></div>
+            <div class="flex justify-between items-center p-3 bg-blue-50 rounded border border-blue-200">
+                <span class="text-xs font-bold text-blue-800 uppercase">Auto-Summed Total</span>
+                <span id="displayTotalCostAuto" class="text-lg font-extrabold text-blue-700">$0</span>
+            </div>
+
+            <!-- METRICS -->
+            <h2 class="text-lg font-bold text-slate-800 mt-6 mb-4 border-b pb-2">Forecast & Metrics</h2>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="form-label">Trading Revenue ($)</label><input type="number" id="mTradingRevenue" class="form-input" value="2431"></div>
+                <div><label class="form-label">ROI (x)</label><input type="number" id="mRoi" class="form-input" value="0.70" step="0.01"></div>
+                <div><label class="form-label">Cost per FTD ($)</label><input type="number" id="mCostPerFtd" class="form-input" value="290"></div>
+                <div><label class="form-label">FTD Count</label><input type="number" id="mFtdCount" class="form-input" value="20"></div>
+                <div><label class="form-label">FTD Amount ($)</label><input type="number" id="mFtdAmount" class="form-input" value="6882"></div>
+                <div><label class="form-label">Gross Deposits ($)</label><input type="number" id="mGrossDeposits" class="form-input" value="2822"></div>
+            </div>
+
+            <!-- FUNNEL -->
+            <div class="flex justify-between items-center mt-6 mb-2 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-800">Forecasted Funnel</h2>
+                <button onclick="addFunnelStage()" class="bg-purple-100 text-purple-700 px-3 py-1 rounded text-xs font-bold hover:bg-purple-200"><i class="fa-solid fa-plus mr-1"></i> Add Stage</button>
+            </div>
+            <div id="funnelStagesContainer" class="space-y-2 mb-4"></div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="w-full lg:w-2/3">
+            <div id="outputContent" class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="bg-slate-800 text-white p-4 rounded-t-xl flex justify-between items-center">
+                    <h1 class="text-2xl font-bold" id="displayCampName"></h1>
+                    <span class="text-base font-semibold tracking-wider">TMGM</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6 mt-6 mb-6">
+                    <div class="space-y-3">
+                        <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
+                            <h3 class="font-bold text-blue-800 text-[10px] uppercase tracking-wide mb-1">Objective</h3>
+                            <p id="displayObjective" class="text-slate-700 text-xs"></p>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-lg border-l-4 border-slate-500">
+                            <h3 class="font-bold text-slate-800 text-[10px] uppercase tracking-wide mb-1">Target Group</h3>
+                            <p id="displayTarget" class="text-slate-700 text-xs"></p>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-lg border-l-4 border-slate-500">
+                            <h3 class="font-bold text-slate-800 text-[10px] uppercase tracking-wide mb-1">Campaign Period</h3>
+                            <p id="displayPeriod" class="text-slate-700 text-xs"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-[10px] uppercase tracking-wide mb-2 border-b pb-1">Campaign Mechanism</h3>
+                        <div id="displayMechanism" class="space-y-1"></div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-200 pt-5">
+                    <h2 class="text-xl font-bold text-slate-800 mb-3">Forecast & Metrics</h2>
+                    <div class="grid grid-cols-4 gap-3 mb-3 text-center">
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 border-t-4 border-t-blue-600">
+                            <h3 class="text-blue-600 font-bold mb-1 text-[10px] uppercase">Total Cost</h3>
+                            <p id="displayTotalCostHero" class="text-xl font-extrabold text-slate-800">$0</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 border-t-4 border-t-emerald-500">
+                            <h3 class="text-emerald-600 font-bold mb-1 text-[10px] uppercase">Trading Revenue</h3>
+                            <p id="displayTradingRevenue" class="text-xl font-extrabold text-slate-800">$0</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 border-t-4 border-t-emerald-500">
+                            <h3 class="text-emerald-600 font-bold mb-1 text-[10px] uppercase">ROI</h3>
+                            <p id="displayRoi" class="text-xl font-extrabold text-slate-800">0x</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 border-t-4 border-t-red-500">
+                            <h3 class="text-red-600 font-bold mb-1 text-[10px] uppercase">Cost per FTD</h3>
+                            <p id="displayCostPerFtd" class="text-xl font-extrabold text-slate-800">$0</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 mb-5 text-center">
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <h3 class="text-slate-500 font-bold mb-1 text-[10px] uppercase">FTD Count</h3>
+                            <p id="displayFtdCount" class="text-lg font-bold text-slate-800">0</p>
+                        </div>
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <h3 class="text-slate-500 font-bold mb-1 text-[10px] uppercase">FTD Amount</h3>
+                            <p id="displayFtdAmount" class="text-lg font-bold text-slate-800">$0</p>
+                        </div>
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <h3 class="text-slate-500 font-bold mb-1 text-[10px] uppercase">Gross Deposits</h3>
+                            <p id="displayGrossDeposits" class="text-lg font-bold text-slate-800">$0</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-5">
+                        <div class="bg-slate-50 p-4 rounded-xl">
+                            <h3 class="font-bold text-slate-700 mb-2 border-b border-slate-200 pb-1.5 text-xs uppercase">Cost Breakdown</h3>
+                            <ul id="displayCostList" class="text-[11px] text-slate-600 space-y-1.5 font-medium"></ul>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-xl">
+                            <h3 class="font-bold text-slate-700 mb-2 border-b border-slate-200 pb-1.5 text-xs uppercase">Forecasted Funnel</h3>
+                            <div id="funnelContainer" class="space-y-1 text-center text-[10px] font-bold text-white"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 bg-red-50 p-3 rounded-xl border border-red-100">
+                    <h3 class="font-bold text-red-800 text-[10px] uppercase tracking-wide mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved"></i> Safeguard Measures
+                    </h3>
+                    <p id="displaySafeguard" class="text-red-900 text-xs"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRESENTATION MODAL -->
+    <div id="presModal">
+        <div id="presBox">
+            <div id="presStage"></div>
+            <div class="absolute -top-14 right-0 flex gap-2">
+                <button onclick="downloadPresentationPNG()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fa-solid fa-image mr-2"></i>Download PNG (1920×1080)</button>
+                <button onclick="closePresentation()" class="bg-white hover:bg-slate-100 text-slate-800 px-4 py-2 rounded-lg text-sm font-semibold"><i class="fa-solid fa-xmark mr-2"></i>Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================== CONFIG ==================
+        const mechanicTypeMap = {
+            registration: { icon: 'fa-user-plus', label: 'Registration' },
+            deposit:      { icon: 'fa-dollar-sign', label: 'Deposit' },
+            trade:        { icon: 'fa-chart-line', label: 'Trade' },
+            lucky_draw:   { icon: 'fa-dice', label: 'Lucky Draw' },
+            spin_wheel:   { icon: 'fa-arrows-spin', label: 'Spin the Wheel' },
+            blind_box:    { icon: 'fa-box-open', label: 'Blind Box' },
+            predict:      { icon: 'fa-bullseye', label: 'Predict to Win' },
+            quiz:         { icon: 'fa-circle-question', label: 'Quiz / Trivia' },
+            refer:        { icon: 'fa-users', label: 'Refer-a-Friend' },
+            milestone:    { icon: 'fa-flag-checkered', label: 'Milestone' },
+            custom:       { icon: 'fa-star', label: 'Custom' }
+        };
+
+        const structureMap = {
+            simple: 'Simple (1 Reward)',
+            tiered: 'Tiered (Progressive)',
+            branch: 'Branch (Options)'
+        };
+
+        // ================== STATE ==================
+        let mechanicSteps = [
+            {
+                icon: 'registration', title: 'Register on Landing Page',
+                structure: 'simple',
+                outcomes: [{ condition: 'Sign up', reward: 'Entry to Challenge' }]
+            },
+            {
+                icon: 'deposit', title: 'Complete First Deposit',
+                structure: 'simple',
+                outcomes: [{ condition: 'Min $50 deposit', reward: '$100 Margin Credit' }]
+            },
+            {
+                icon: 'trade', title: 'Trade & Progress Tiers',
+                structure: 'tiered',
+                outcomes: [
+                    { condition: 'Trade 2 lots', reward: '$100 Bonus' },
+                    { condition: 'Trade 5 lots', reward: '$200 Bonus' },
+                    { condition: 'Trade 10 lots', reward: '$500 Bonus' }
+                ]
+            },
+            {
+                icon: 'lucky_draw', title: 'Lucky Draw Entry',
+                structure: 'branch',
+                outcomes: [
+                    { condition: 'Trade ≥ 3 lots', reward: 'Standard Draw Entry' },
+                    { condition: 'Trade ≥ 10 lots', reward: 'Premium Draw Entry' }
+                ]
+            }
+        ];
+
+        let costItems = [
+            { title: 'Media Spend', amount: 1500 },
+            { title: 'Reward Credit', amount: 280 },
+            { title: 'Creative & Production', amount: 0 }
+        ];
+
+        let funnelStages = [
+            { name: 'Total Pool', count: 2244 },
+            { name: 'Participants', count: 20 },
+            { name: 'Completers', count: 6 }
+        ];
+
+        // ================== INIT ==================
+        const textFieldMap = [
+            ['campName', 'displayCampName'],
+            ['campObjective', 'displayObjective'],
+            ['campTarget', 'displayTarget'],
+            ['campPeriod', 'displayPeriod'],
+            ['campSafeguard', 'displaySafeguard']
+        ];
+        const manualMetricIds = ['mTradingRevenue', 'mRoi', 'mCostPerFtd', 'mFtdCount', 'mFtdAmount', 'mGrossDeposits'];
+
+        textFieldMap.forEach(([inputId]) => document.getElementById(inputId).addEventListener('input', renderText));
+        manualMetricIds.forEach(id => document.getElementById(id).addEventListener('input', renderMetrics));
+
+        renderMechanicsInput();
+        renderCostItemsInput();
+        renderFunnelInput();
+        renderAll();
+
+        // ================== TEXT ==================
+        function renderText() {
+            textFieldMap.forEach(([inputId, displayId]) => {
+                document.getElementById(displayId).innerText = document.getElementById(inputId).value;
+            });
+        }
+
+        // ================== MECHANICS INPUT ==================
+        function renderMechanicsInput() {
+            const container = document.getElementById('mechanicStepsContainer');
+            container.innerHTML = '';
+            mechanicSteps.forEach((step, i) => {
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-slate-50 rounded border border-slate-200';
+                const iconOpts = Object.entries(mechanicTypeMap).map(([k, v]) =>
+                    `<option value="${k}" ${step.icon === k ? 'selected' : ''}>${v.label}</option>`).join('');
+                const structOpts = Object.entries(structureMap).map(([k, v]) =>
+                    `<option value="${k}" ${step.structure === k ? 'selected' : ''}>${v}</option>`).join('');
+
+                let outcomesHtml = '';
+                step.outcomes.forEach((o, j) => {
+                    outcomesHtml += `
+                        <div class="flex gap-1 items-center mb-1">
+                            <input type="text" value="${o.condition}" onchange="updateOutcome(${i},${j},'condition',this.value)" class="form-input text-[11px] flex-1 mb-0" placeholder="Condition">
+                            <i class="fa-solid fa-arrow-right text-slate-400 text-[10px]"></i>
+                            <input type="text" value="${o.reward}" onchange="updateOutcome(${i},${j},'reward',this.value)" class="form-input text-[11px] flex-1 mb-0" placeholder="Reward">
+                            ${step.outcomes.length > 1 ? `<button onclick="removeOutcome(${i},${j})" class="text-red-500 text-[10px]"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                        </div>`;
+                });
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-[10px] text-slate-500">STEP ${i + 1}</span>
+                        <button onclick="removeMechanicStep(${i})" class="text-red-500 hover:text-red-700 text-xs"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mb-2">
+                        <select onchange="updateStepField(${i},'icon',this.value)" class="form-input text-[11px] mb-0 col-span-1">${iconOpts}</select>
+                        <input type="text" value="${step.title}" onchange="updateStepField(${i},'title',this.value)" class="form-input text-[11px] mb-0 col-span-2" placeholder="Step title">
+                    </div>
+                    <div class="mb-2">
+                        <select onchange="updateStepField(${i},'structure',this.value)" class="form-input text-[11px] mb-0">${structOpts}</select>
+                    </div>
+                    <div class="border-t border-slate-200 pt-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase">Outcomes</span>
+                            <button onclick="addOutcome(${i})" class="text-blue-600 text-[10px] font-bold hover:underline"><i class="fa-solid fa-plus mr-1"></i>Add</button>
+                        </div>
+                        ${outcomesHtml}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addMechanicStep() {
+            mechanicSteps.push({
+                icon: 'custom', title: 'New Step', structure: 'simple',
+                outcomes: [{ condition: '', reward: 'New Reward' }]
+            });
+            renderMechanicsInput(); renderMechanicsOutput();
+        }
+        function removeMechanicStep(i) {
+            mechanicSteps.splice(i, 1);
+            renderMechanicsInput(); renderMechanicsOutput();
+        }
+        function updateStepField(i, field, val) {
+            mechanicSteps[i][field] = val;
+            renderMechanicsOutput();
+        }
+        function addOutcome(i) {
+            mechanicSteps[i].outcomes.push({ condition: '', reward: '' });
+            renderMechanicsInput(); renderMechanicsOutput();
+        }
+        function removeOutcome(i, j) {
+            mechanicSteps[i].outcomes.splice(j, 1);
+            renderMechanicsInput(); renderMechanicsOutput();
+        }
+        function updateOutcome(i, j, field, val) {
+            mechanicSteps[i].outcomes[j][field] = val;
+            renderMechanicsOutput();
+        }
+
+        // ================== MECHANICS OUTPUT ==================
+        function renderMechanicsOutput() {
+            const container = document.getElementById('displayMechanism');
+            container.innerHTML = '';
+            mechanicSteps.forEach((step, i) => {
+                if (i > 0) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'm-arrow';
+                    arrow.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+                    container.appendChild(arrow);
+                }
+                const meta = mechanicTypeMap[step.icon] || mechanicTypeMap.custom;
+                const card = document.createElement('div');
+                card.className = 'm-step';
+
+                let bodyHtml = '';
+                if (step.structure === 'simple') {
+                    bodyHtml = step.outcomes.map(o =>
+                        `<div class="simple-outcome">
+                            ${o.condition ? `<span class="text-slate-500">${o.condition}</span> <i class="fa-solid fa-arrow-right text-slate-400 text-[9px] mx-1"></i> ` : ''}
+                            <span class="reward">${o.reward}</span>
+                        </div>`
+                    ).join('');
+                } else if (step.structure === 'tiered') {
+                    bodyHtml = step.outcomes.map((o, j) =>
+                        `<div class="tier-row">
+                            <span class="tier-badge">TIER ${j + 1}</span>
+                            <span class="tier-cond">${o.condition || '—'}</span>
+                            <i class="fa-solid fa-arrow-right tier-arrow"></i>
+                            <span class="tier-reward">${o.reward || '—'}</span>
+                        </div>`
+                    ).join('');
+                } else if (step.structure === 'branch') {
+                    bodyHtml = `<div class="branch-grid">` + step.outcomes.map((o, j) =>
+                        `<div class="branch-card">
+                            <div class="branch-label">OPTION ${String.fromCharCode(65 + j)}</div>
+                            <div class="branch-cond">${o.condition || '—'}</div>
+                            <div class="branch-reward">→ ${o.reward || '—'}</div>
+                        </div>`
+                    ).join('') + `</div>`;
+                }
+
+                card.innerHTML = `
+                    <div class="m-step-title">
+                        <span class="m-step-icon"><i class="fa-solid ${meta.icon}"></i></span>
+                        <span class="text-slate-800 font-bold text-xs">${step.title}</span>
+                    </div>
+                    ${bodyHtml}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ================== COST ITEMS ==================
+        function renderCostItemsInput() {
+            const container = document.getElementById('costItemsContainer');
+            container.innerHTML = '';
+            costItems.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'flex gap-2 items-center';
+                div.innerHTML = `
+                    <input type="text" value="${item.title}" onchange="updateCostTitle(${i},this.value)" class="form-input text-xs flex-1 mb-0" placeholder="Cost title">
+                    <input type="number" value="${item.amount}" onchange="updateCostAmount(${i},this.value)" class="form-input text-xs w-24 mb-0">
+                    <button onclick="removeCostItem(${i})" class="text-red-500 hover:text-red-700 text-xs"><i class="fa-solid fa-trash"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+        function addCostItem() { costItems.push({ title: 'New Cost', amount: 0 }); renderCostItemsInput(); renderCostOutput(); }
+        function removeCostItem(i) { costItems.splice(i, 1); renderCostItemsInput(); renderCostOutput(); }
+        function updateCostTitle(i, v) { costItems[i].title = v; renderCostOutput(); }
+        function updateCostAmount(i, v) { costItems[i].amount = parseFloat(v) || 0; renderCostOutput(); }
+        function getTotalCost() { return costItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0); }
+
+        function renderCostOutput() {
+            const total = getTotalCost();
+            document.getElementById('displayTotalCostAuto').innerText = '$' + total.toLocaleString();
+            document.getElementById('displayTotalCostHero').innerText = '$' + total.toLocaleString();
+            const list = document.getElementById('displayCostList');
+            list.innerHTML = '';
+            costItems.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center';
+                li.innerHTML = `<span><i class="fa-solid fa-circle text-[5px] text-slate-400 mr-2"></i>${item.title}</span><span class="font-bold text-slate-800">$${(parseFloat(item.amount) || 0).toLocaleString()}</span>`;
+                list.appendChild(li);
+            });
+            const liT = document.createElement('li');
+            liT.className = 'flex justify-between items-center pt-2 border-t border-slate-200 mt-1';
+            liT.innerHTML = `<span class="font-bold text-slate-800">Total Cost</span><span class="font-bold text-blue-600">$${total.toLocaleString()}</span>`;
+            list.appendChild(liT);
+        }
+
+        // ================== FUNNEL ==================
+        function renderFunnelInput() {
+            const container = document.getElementById('funnelStagesContainer');
+            container.innerHTML = '';
+            funnelStages.forEach((s, i) => {
+                const div = document.createElement('div');
+                div.className = 'flex gap-2 items-center';
+                div.innerHTML = `
+                    <input type="text" value="${s.name}" onchange="updateFunnelName(${i},this.value)" class="form-input text-xs flex-1 mb-0">
+                    <input type="number" value="${s.count}" onchange="updateFunnelCount(${i},this.value)" class="form-input text-xs w-24 mb-0">
+                    <button onclick="removeFunnelStage(${i})" class="text-red-500 hover:text-red-700 text-xs"><i class="fa-solid fa-trash"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+        function addFunnelStage() { funnelStages.push({ name: 'New Stage', count: 0 }); renderFunnelInput(); renderFunnelOutput(); }
+        function removeFunnelStage(i) { funnelStages.splice(i, 1); renderFunnelInput(); renderFunnelOutput(); }
+        function updateFunnelName(i, v) { funnelStages[i].name = v; renderFunnelOutput(); }
+        function updateFunnelCount(i, v) { funnelStages[i].count = parseFloat(v) || 0; renderFunnelOutput(); }
+
+        function renderFunnelOutput() {
+            const container = document.getElementById('funnelContainer');
+            container.innerHTML = '';
+            if (!funnelStages.length) return;
+            const max = Math.max(...funnelStages.map(s => s.count), 1);
+            const colors = ['bg-blue-900', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400'];
+            funnelStages.forEach((s, i) => {
+                const widthPct = Math.max(25, (s.count / max) * 100);
+                const color = colors[Math.min(i, colors.length - 1)];
+                const div = document.createElement('div');
+                div.className = `${color} rounded py-1 mx-auto shadow-sm truncate px-2 transition-all`;
+                div.style.width = `${widthPct}%`;
+                div.innerText = `${s.count.toLocaleString()} - ${s.name}`;
+                container.appendChild(div);
+            });
+        }
+
+        // ================== METRICS ==================
+        function renderMetrics() {
+            const v = id => parseFloat(document.getElementById(id).value) || 0;
+            document.getElementById('displayTradingRevenue').innerText = '$' + v('mTradingRevenue').toLocaleString();
+            document.getElementById('displayRoi').innerText = v('mRoi') + 'x';
+            document.getElementById('displayCostPerFtd').innerText = '$' + v('mCostPerFtd').toLocaleString();
+            document.getElementById('displayFtdCount').innerText = v('mFtdCount').toLocaleString();
+            document.getElementById('displayFtdAmount').innerText = '$' + v('mFtdAmount').toLocaleString();
+            document.getElementById('displayGrossDeposits').innerText = '$' + v('mGrossDeposits').toLocaleString();
+        }
+
+        function renderAll() {
+            renderText();
+            renderMechanicsOutput();
+            renderCostOutput();
+            renderFunnelOutput();
+            renderMetrics();
+        }
+
+        // ================== PRESENTATION MODE ==================
+        function openPresentation() {
+            const modal = document.getElementById('presModal');
+            const stage = document.getElementById('presStage');
+            const content = document.getElementById('outputContent');
+
+            modal.classList.add('active');
+            stage.innerHTML = '';
+
+            const clone = content.cloneNode(true);
+            clone.style.transform = '';
+            clone.style.width = '1280px';
+            clone.style.position = 'absolute';
+            clone.style.top = '0';
+            clone.style.left = '0';
+            clone.style.transformOrigin = 'top left';
+            clone.style.boxShadow = 'none';
+            clone.style.borderRadius = '0';
+            stage.appendChild(clone);
+
+            requestAnimationFrame(() => {
+                const naturalH = clone.scrollHeight;
+                const stageW = stage.clientWidth;
+                const stageH = stage.clientHeight;
+                const scale = Math.min(stageW / 1280, stageH / naturalH);
+                const scaledW = 1280 * scale;
+                const scaledH = naturalH * scale;
+                clone.style.transform = `scale(${scale})`;
+                clone.style.left = ((stageW - scaledW) / 2) + 'px';
+                clone.style.top = ((stageH - scaledH) / 2) + 'px';
+            });
+        }
+
+        function closePresentation() {
+            document.getElementById('presModal').classList.remove('active');
+            document.getElementById('presStage').innerHTML = '';
+        }
+
+        async function downloadPresentationPNG() {
+            const stage = document.getElementById('presStage');
+            const btn = event.target.closest('button');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Generating...';
+            btn.disabled = true;
+
+            try {
+                const canvas = await html2canvas(stage, {
+                    scale: 1.5, backgroundColor: '#ffffff', useCORS: true, logging: false
+                });
+                // Draw onto a strict 1920x1080 canvas
+                const final = document.createElement('canvas');
+                final.width = 1920;
+                final.height = 1080;
+                const ctx = final.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 1920, 1080);
+                const scale = Math.min(1920 / canvas.width, 1080 / canvas.height);
+                const dw = canvas.width * scale;
+                const dh = canvas.height * scale;
+                ctx.drawImage(canvas, (1920 - dw) / 2, (1080 - dh) / 2, dw, dh);
+
+                const link = document.createElement('a');
+                link.download = 'Campaign_Proposal_1920x1080.png';
+                link.href = final.toDataURL('image/png', 1.0);
+                link.click();
+            } catch (err) {
+                console.error(err);
+                alert('Screenshot failed. Please try again.');
+            } finally {
+                btn.innerHTML = orig;
+                btn.disabled = false;
+            }
+        }
+
+        // Close on ESC
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closePresentation(); });
+
+        // ================== EXPORT / IMPORT ==================
+        function exportData() {
+            const data = {
+                text: {}, mechanicSteps, costItems, funnelStages,
+                metrics: {
+                    tradingRevenue: document.getElementById('mTradingRevenue').value,
+                    roi: document.getElementById('mRoi').value,
+                    costPerFtd: document.getElementById('mCostPerFtd').value,
+                    ftdCount: document.getElementById('mFtdCount').value,
+                    ftdAmount: document.getElementById('mFtdAmount').value,
+                    grossDeposits: document.getElementById('mGrossDeposits').value
+                }
+            };
+            textFieldMap.forEach(([id]) => { data.text[id] = document.getElementById(id).value; });
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Campaign_Template.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const d = JSON.parse(e.target.result);
+                if (d.text) textFieldMap.forEach(([id]) => { if (d.text[id] !== undefined) document.getElementById(id).value = d.text[id]; });
+                if (d.mechanicSteps) mechanicSteps = d.mechanicSteps;
+                if (d.costItems) costItems = d.costItems;
+                if (d.funnelStages) funnelStages = d.funnelStages;
+                if (d.metrics) {
+                    document.getElementById('mTradingRevenue').value = d.metrics.tradingRevenue || 0;
+                    document.getElementById('mRoi').value = d.metrics.roi || 0;
+                    document.getElementById('mCostPerFtd').value = d.metrics.costPerFtd || 0;
+                    document.getElementById('mFtdCount').value = d.metrics.ftdCount || 0;
+                    document.getElementById('mFtdAmount').value = d.metrics.ftdAmount || 0;
+                    document.getElementById('mGrossDeposits').value = d.metrics.grossDeposits || 0;
+                }
+                renderMechanicsInput(); renderCostItemsInput(); renderFunnelInput(); renderAll();
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
