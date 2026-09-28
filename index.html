@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Proposal Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; }
+        .scrollable-panel { max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: thin; }
+        .scrollable-panel::-webkit-scrollbar { width: 6px; }
+        .scrollable-panel::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+
+        .form-input { width: 100%; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; font-size: 0.8rem; margin-bottom: 0.5rem; transition: border-color 0.2s; }
+        .form-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-label { display: block; font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 0.25rem; }
+
+        .mechanism-step { display: flex; align-items: center; margin-bottom: 0.25rem; background: #f8fafc; padding: 0.6rem 0.75rem; border-radius: 0.375rem; border-left: 3px solid #3b82f6; }
+        .mechanism-arrow { text-align: center; color: #94a3b8; font-size: 1rem; margin: 0.1rem 0; }
+
+        /* Output wrapper for Fit-to-Screen */
+        #outputWrapper { overflow: hidden; transition: height 0.3s ease; }
+        #outputContent { transform-origin: top left; transition: transform 0.3s ease; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Action Bar -->
+    <div class="max-w-7xl mx-auto mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-file-invoice text-2xl text-blue-600"></i>
+            <h1 class="text-xl font-bold text-slate-800">Campaign Proposal Builder</h1>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="exportData()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition"><i class="fa-solid fa-download mr-2"></i>Save Template</button>
+            <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer">
+                <i class="fa-solid fa-upload mr-2"></i>Load Template
+                <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+            </label>
+            <button id="fitBtn" onclick="toggleFitToScreen()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                <i class="fa-solid fa-expand mr-2"></i>Fit to One Page
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        
+        <!-- LEFT PANEL: INPUTS -->
+        <div class="w-full lg:w-1/3 bg-white p-6 rounded-xl shadow-lg h-fit sticky top-8 scrollable-panel">
+            <h2 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Campaign Details</h2>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Campaign Name</label>
+                    <input type="text" id="campName" class="form-input" value="MY National Day Challenge">
+                </div>
+                <div>
+                    <label class="form-label">Campaign Period</label>
+                    <input type="text" id="campPeriod" class="form-input" value="1 Oct 2026 - 31 Oct 2026">
+                </div>
+            </div>
+
+            <label class="form-label">Objective</label>
+            <textarea id="campObjective" class="form-input h-20" rows="3">Drive FTDs and encourage FTT conversion by creating an engaging, easy-to-join seasonal experience.</textarea>
+
+            <label class="form-label">Target Group</label>
+            <textarea id="campTarget" class="form-input h-16" rows="2">Global excluding MENA. New and existing unfunded clients.</textarea>
+
+            <label class="form-label">Safeguard Measures</label>
+            <textarea id="campSafeguard" class="form-input h-16" rows="2">Unfunded clients only. Min margin $50. No hedging. First trade only.</textarea>
+
+            <!-- MECHANICS BUILDER -->
+            <div class="flex justify-between items-center mt-6 mb-2 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-800">Campaign Mechanics</h2>
+                <button onclick="addMechanicStep()" class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs font-bold hover:bg-blue-200"><i class="fa-solid fa-plus mr-1"></i> Add Step</button>
+            </div>
+            <div id="mechanicStepsContainer" class="space-y-2 mb-6"></div>
+
+            <!-- COST BREAKDOWN -->
+            <div class="flex justify-between items-center mt-6 mb-2 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-800">Cost Breakdown</h2>
+                <button onclick="addCostItem()" class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded text-xs font-bold hover:bg-emerald-200"><i class="fa-solid fa-plus mr-1"></i> Add Cost</button>
+            </div>
+            <div id="costItemsContainer" class="space-y-2 mb-4"></div>
+            <div class="flex justify-between items-center p-3 bg-blue-50 rounded border border-blue-200">
+                <span class="text-xs font-bold text-blue-800 uppercase">Auto-Summed Total</span>
+                <span id="displayTotalCostAuto" class="text-lg font-extrabold text-blue-700">$0</span>
+            </div>
+
+            <!-- FORECAST METRICS -->
+            <h2 class="text-lg font-bold text-slate-800 mt-6 mb-4 border-b pb-2">Forecast & Metrics</h2>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Trading Revenue ($)</label>
+                    <input type="number" id="mTradingRevenue" class="form-input" value="2431">
+                </div>
+                <div>
+                    <label class="form-label">ROI (x)</label>
+                    <input type="number" id="mRoi" class="form-input" value="0.70" step="0.01">
+                </div>
+                <div>
+                    <label class="form-label">Cost per FTD ($)</label>
+                    <input type="number" id="mCostPerFtd" class="form-input" value="290">
+                </div>
+                <div>
+                    <label class="form-label">FTD Count</label>
+                    <input type="number" id="mFtdCount" class="form-input" value="20">
+                </div>
+                <div>
+                    <label class="form-label">FTD Amount ($)</label>
+                    <input type="number" id="mFtdAmount" class="form-input" value="6882">
+                </div>
+                <div>
+                    <label class="form-label">Gross Deposits ($)</label>
+                    <input type="number" id="mGrossDeposits" class="form-input" value="2822">
+                </div>
+            </div>
+
+            <!-- FUNNEL STAGES -->
+            <div class="flex justify-between items-center mt-6 mb-2 border-b pb-2">
+                <h2 class="text-lg font-bold text-slate-800">Forecasted Funnel</h2>
+                <button onclick="addFunnelStage()" class="bg-purple-100 text-purple-700 px-3 py-1 rounded text-xs font-bold hover:bg-purple-200"><i class="fa-solid fa-plus mr-1"></i> Add Stage</button>
+            </div>
+            <div id="funnelStagesContainer" class="space-y-2 mb-4"></div>
+        </div>
+
+        <!-- RIGHT PANEL: ONE-PAGER OUTPUT -->
+        <div class="w-full lg:w-2/3">
+            <div id="outputWrapper">
+                <div id="outputContent" class="bg-white p-8 rounded-xl shadow-lg">
+
+                    <!-- Header -->
+                    <div class="bg-slate-800 text-white p-6 rounded-t-xl flex justify-between items-center">
+                        <h1 class="text-3xl font-bold" id="displayCampName">MY National Day Challenge</h1>
+                        <span class="text-lg font-semibold tracking-wider">TMGM</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-8 mt-8 mb-8">
+                        <div class="space-y-4">
+                            <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                                <h3 class="font-bold text-blue-800 text-xs uppercase tracking-wide mb-1">Objective</h3>
+                                <p id="displayObjective" class="text-slate-700 text-sm"></p>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border-l-4 border-slate-500">
+                                <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wide mb-1">Target Group</h3>
+                                <p id="displayTarget" class="text-slate-700 text-sm"></p>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border-l-4 border-slate-500">
+                                <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wide mb-1">Campaign Period</h3>
+                                <p id="displayPeriod" class="text-slate-700 text-sm"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wide mb-3 border-b pb-2">Campaign Mechanism</h3>
+                            <div id="displayMechanism" class="space-y-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Forecast -->
+                    <div class="border-t border-slate-200 pt-6">
+                        <h2 class="text-2xl font-bold text-slate-800 mb-4">Forecast & Metrics</h2>
+
+                        <div class="grid grid-cols-4 gap-4 mb-4 text-center">
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-blue-600">
+                                <h3 class="text-blue-600 font-bold mb-1 text-[10px] uppercase">Total Cost</h3>
+                                <p id="displayTotalCostHero" class="text-2xl font-extrabold text-slate-800">$0</p>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-emerald-500">
+                                <h3 class="text-emerald-600 font-bold mb-1 text-[10px] uppercase">Trading Revenue</h3>
+                                <p id="displayTradingRevenue" class="text-2xl font-extrabold text-slate-800">$0</p>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-emerald-500">
+                                <h3 class="text-emerald-600 font-bold mb-1 text-[10px] uppercase">ROI</h3>
+                                <p id="displayRoi" class="text-2xl font-extrabold text-slate-800">0x</p>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-red-500">
+                                <h3 class="text-red-600 font-bold mb-1 text-[10px] uppercase">Cost per FTD</h3>
+                                <p id="displayCostPerFtd" class="text-2xl font-extrabold text-slate-800">$0</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4 mb-6 text-center">
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <h3 class="text-slate-500 font-bold mb-1 text-[10px] uppercase">FTD Count</h3>
+                                <p id="displayFtdCount" class="text-xl font-bold text-slate-800">0</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <h3 class="text-slate-500 font-bold mb-1 text-[10px] uppercase">FTD Amount</h3>
+                                <p id="displayFtdAmount" class="text-xl font-bold text-slate-800">$0</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <h3 class="text-slate-500 font-bold mb-1 text-[10px] uppercase">Gross Deposits</h3>
+                                <p id="displayGrossDeposits" class="text-xl font-bold text-slate-800">$0</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="bg-slate-50 p-5 rounded-xl">
+                                <h3 class="font-bold text-slate-700 mb-3 border-b border-slate-200 pb-2 text-sm uppercase">Cost Breakdown</h3>
+                                <ul id="displayCostList" class="text-xs text-slate-600 space-y-2 font-medium"></ul>
+                            </div>
+                            <div class="bg-slate-50 p-5 rounded-xl">
+                                <h3 class="font-bold text-slate-700 mb-3 border-b border-slate-200 pb-2 text-sm uppercase">Forecasted Funnel</h3>
+                                <div id="funnelContainer" class="space-y-1 text-center text-[10px] font-bold text-white"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Safeguards -->
+                    <div class="mt-6 bg-red-50 p-4 rounded-xl border border-red-100">
+                        <h3 class="font-bold text-red-800 text-xs uppercase tracking-wide mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved"></i> Safeguard Measures
+                        </h3>
+                        <p id="displaySafeguard" class="text-red-900 text-xs"></p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- STATE ----------
+        const mechanicTypeMap = {
+            registration: { icon: 'fa-user-plus', label: 'Registration' },
+            deposit:      { icon: 'fa-dollar-sign', label: 'Deposit' },
+            trade:        { icon: 'fa-chart-line', label: 'Trade' },
+            lucky_draw:   { icon: 'fa-dice', label: 'Lucky Draw' },
+            spin_wheel:   { icon: 'fa-arrows-spin', label: 'Spin the Wheel' },
+            blind_box:    { icon: 'fa-box-open', label: 'Blind Box' },
+            predict:      { icon: 'fa-bullseye', label: 'Predict to Win' },
+            quiz:         { icon: 'fa-circle-question', label: 'Quiz / Trivia' },
+            custom:       { icon: 'fa-star', label: 'Custom' }
+        };
+
+        let mechanicSteps = [
+            { type: 'registration', label: 'Register on Landing Page' },
+            { type: 'deposit', label: 'Complete First Deposit' },
+            { type: 'trade', label: 'Execute First Trade' },
+            { type: 'lucky_draw', label: 'Enter Lucky Draw' }
+        ];
+
+        let costItems = [
+            { title: 'Media Spend', amount: 1500 },
+            { title: 'Reward Credit', amount: 280 },
+            { title: 'Creative & Production', amount: 0 }
+        ];
+
+        let funnelStages = [
+            { name: 'Total Pool', count: 2244 },
+            { name: 'Participants', count: 20 },
+            { name: 'Completers', count: 6 }
+        ];
+
+        // ---------- INIT ----------
+        const textFieldMap = [
+            ['campName', 'displayCampName'],
+            ['campObjective', 'displayObjective'],
+            ['campTarget', 'displayTarget'],
+            ['campPeriod', 'displayPeriod'],
+            ['campSafeguard', 'displaySafeguard']
+        ];
+
+        const manualMetricIds = [
+            'mTradingRevenue', 'mRoi', 'mCostPerFtd', 'mFtdCount', 'mFtdAmount', 'mGrossDeposits'
+        ];
+
+        textFieldMap.forEach(([inputId]) => {
+            document.getElementById(inputId).addEventListener('input', renderText);
+        });
+        manualMetricIds.forEach(id => {
+            document.getElementById(id).addEventListener('input', renderMetrics);
+        });
+
+        renderMechanicsInput();
+        renderCostItemsInput();
+        renderFunnelInput();
+        renderAll();
+
+        // ---------- TEXT ----------
+        function renderText() {
+            textFieldMap.forEach(([inputId, displayId]) => {
+                document.getElementById(displayId).innerText = document.getElementById(inputId).value;
+            });
+        }
+
+        // ---------- MECHANICS BUILDER ----------
+        function renderMechanicsInput() {
+            const container = document.getElementById('mechanicStepsContainer');
+            container.innerHTML = '';
+            mechanicSteps.forEach((step, i) => {
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-slate-50 rounded border border-slate-200';
+                const optionsHtml = Object.entries(mechanicTypeMap).map(([key, val]) =>
+                    `<option value="${key}" ${step.type === key ? 'selected' : ''}>${val.label}</option>`
+                ).join('');
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-[10px] text-slate-500">STEP ${i + 1}</span>
+                        <button onclick="removeMechanicStep(${i})" class="text-red-500 hover:text-red-700 text-xs"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <select onchange="updateMechanicType(${i}, this.value)" class="form-input text-xs">${optionsHtml}</select>
+                        <input type="text" value="${step.label}" onchange="updateMechanicLabel(${i}, this.value)" class="form-input text-xs" placeholder="Step label...">
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+        function addMechanicStep() {
+            mechanicSteps.push({ type: 'custom', label: 'New Step' });
+            renderMechanicsInput(); renderMechanicsOutput();
+        }
+        function removeMechanicStep(i) {
+            mechanicSteps.splice(i, 1);
+            renderMechanicsInput(); renderMechanicsOutput();
+        }
+        function updateMechanicType(i, val) {
+            mechanicSteps[i].type = val;
+            renderMechanicsOutput();
+        }
+        function updateMechanicLabel(i, val) {
+            mechanicSteps[i].label = val;
+            renderMechanicsOutput();
+        }
+
+        function renderMechanicsOutput() {
+            const container = document.getElementById('displayMechanism');
+            container.innerHTML = '';
+            mechanicSteps.forEach((step, i) => {
+                if (i > 0) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'mechanism-arrow';
+                    arrow.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+                    container.appendChild(arrow);
+                }
+                const meta = mechanicTypeMap[step.type] || mechanicTypeMap.custom;
+                const div = document.createElement('div');
+                div.className = 'mechanism-step';
+                div.innerHTML = `
+                    <span class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded mr-3 w-7 text-center"><i class="fa-solid ${meta.icon}"></i></span>
+                    <span class="text-slate-700 font-medium text-sm">${step.label}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // ---------- COST ITEMS ----------
+        function renderCostItemsInput() {
+            const container = document.getElementById('costItemsContainer');
+            container.innerHTML = '';
+            costItems.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'flex gap-2 items-center';
+                div.innerHTML = `
+                    <input type="text" value="${item.title}" onchange="updateCostTitle(${i}, this.value)" class="form-input text-xs flex-1 mb-0" placeholder="Cost title">
+                    <input type="number" value="${item.amount}" onchange="updateCostAmount(${i}, this.value)" class="form-input text-xs w-24 mb-0" placeholder="$">
+                    <button onclick="removeCostItem(${i})" class="text-red-500 hover:text-red-700 text-xs"><i class="fa-solid fa-trash"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+        function addCostItem() {
+            costItems.push({ title: 'New Cost', amount: 0 });
+            renderCostItemsInput(); renderCostOutput();
+        }
+        function removeCostItem(i) {
+            costItems.splice(i, 1);
+            renderCostItemsInput(); renderCostOutput();
+        }
+        function updateCostTitle(i, val) {
+            costItems[i].title = val;
+            renderCostOutput();
+        }
+        function updateCostAmount(i, val) {
+            costItems[i].amount = parseFloat(val) || 0;
+            renderCostOutput();
+        }
+        function getTotalCost() {
+            return costItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        }
+        function renderCostOutput() {
+            const total = getTotalCost();
+            document.getElementById('displayTotalCostAuto').innerText = '$' + total.toLocaleString();
+            document.getElementById('displayTotalCostHero').innerText = '$' + total.toLocaleString();
+
+            const list = document.getElementById('displayCostList');
+            list.innerHTML = '';
+            costItems.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center';
+                li.innerHTML = `<span><i class="fa-solid fa-circle text-[6px] text-slate-400 mr-2"></i>${item.title}</span><span class="font-bold text-slate-800">$${(parseFloat(item.amount) || 0).toLocaleString()}</span>`;
+                list.appendChild(li);
+            });
+            const liTotal = document.createElement('li');
+            liTotal.className = 'flex justify-between items-center pt-2 border-t border-slate-200 mt-2';
+            liTotal.innerHTML = `<span class="font-bold text-slate-800">Total Cost</span><span class="font-bold text-blue-600">$${total.toLocaleString()}</span>`;
+            list.appendChild(liTotal);
+        }
+
+        // ---------- FUNNEL STAGES ----------
+        function renderFunnelInput() {
+            const container = document.getElementById('funnelStagesContainer');
+            container.innerHTML = '';
+            funnelStages.forEach((stage, i) => {
+                const div = document.createElement('div');
+                div.className = 'flex gap-2 items-center';
+                div.innerHTML = `
+                    <input type="text" value="${stage.name}" onchange="updateFunnelName(${i}, this.value)" class="form-input text-xs flex-1 mb-0" placeholder="Stage name">
+                    <input type="number" value="${stage.count}" onchange="updateFunnelCount(${i}, this.value)" class="form-input text-xs w-24 mb-0" placeholder="Count">
+                    <button onclick="removeFunnelStage(${i})" class="text-red-500 hover:text-red-700 text-xs"><i class="fa-solid fa-trash"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+        function addFunnelStage() {
+            funnelStages.push({ name: 'New Stage', count: 0 });
+            renderFunnelInput(); renderFunnelOutput();
+        }
+        function removeFunnelStage(i) {
+            funnelStages.splice(i, 1);
+            renderFunnelInput(); renderFunnelOutput();
+        }
+        function updateFunnelName(i, val) {
+            funnelStages[i].name = val;
+            renderFunnelOutput();
+        }
+        function updateFunnelCount(i, val) {
+            funnelStages[i].count = parseFloat(val) || 0;
+            renderFunnelOutput();
+        }
+        function renderFunnelOutput() {
+            const container = document.getElementById('funnelContainer');
+            container.innerHTML = '';
+            if (funnelStages.length === 0) return;
+            const max = Math.max(...funnelStages.map(s => s.count), 1);
+            const colors = ['bg-blue-900', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400'];
+            funnelStages.forEach((stage, i) => {
+                // Auto-scale based on user count, minimum 25% width for readability
+                const widthPct = Math.max(25, (stage.count / max) * 100);
+                const color = colors[Math.min(i, colors.length - 1)];
+                const div = document.createElement('div');
+                div.className = `${color} rounded py-1 mx-auto shadow-sm truncate px-2 transition-all`;
+                div.style.width = `${widthPct}%`;
+                div.innerText = `${stage.count.toLocaleString()} - ${stage.name}`;
+                container.appendChild(div);
+            });
+        }
+
+        // ---------- MANUAL METRICS ----------
+        function renderMetrics() {
+            const tradingRev = parseFloat(document.getElementById('mTradingRevenue').value) || 0;
+            const roi = parseFloat(document.getElementById('mRoi').value) || 0;
+            const costPerFtd = parseFloat(document.getElementById('mCostPerFtd').value) || 0;
+            const ftdCount = parseFloat(document.getElementById('mFtdCount').value) || 0;
+            const ftdAmount = parseFloat(document.getElementById('mFtdAmount').value) || 0;
+            const grossDeposits = parseFloat(document.getElementById('mGrossDeposits').value) || 0;
+
+            document.getElementById('displayTradingRevenue').innerText = '$' + tradingRev.toLocaleString();
+            document.getElementById('displayRoi').innerText = roi + 'x';
+            document.getElementById('displayCostPerFtd').innerText = '$' + costPerFtd.toLocaleString();
+            document.getElementById('displayFtdCount').innerText = ftdCount.toLocaleString();
+            document.getElementById('displayFtdAmount').innerText = '$' + ftdAmount.toLocaleString();
+            document.getElementById('displayGrossDeposits').innerText = '$' + grossDeposits.toLocaleString();
+        }
+
+        // ---------- RENDER ALL ----------
+        function renderAll() {
+            renderText();
+            renderMechanicsOutput();
+            renderCostOutput();
+            renderFunnelOutput();
+            renderMetrics();
+        }
+
+        // ---------- FIT TO SCREEN ----------
+        let isFitted = false;
+        function toggleFitToScreen() {
+            const wrapper = document.getElementById('outputWrapper');
+            const content = document.getElementById('outputContent');
+            const btn = document.getElementById('fitBtn');
+
+            if (isFitted) {
+                content.style.transform = '';
+                content.style.width = '';
+                wrapper.style.height = '';
+                isFitted = false;
+                btn.innerHTML = '<i class="fa-solid fa-expand mr-2"></i>Fit to One Page';
+                return;
+            }
+
+            // Reset to natural size for measurement
+            content.style.transform = '';
+            content.style.width = '';
+            wrapper.style.height = '';
+
+            const naturalHeight = content.scrollHeight;
+            const naturalWidth = content.scrollWidth;
+            const availableHeight = window.innerHeight - 140;
+            const availableWidth = wrapper.clientWidth;
+
+            const scale = Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight, 1);
+
+            if (scale < 1) {
+                content.style.transform = `scale(${scale})`;
+                content.style.width = (100 / scale) + '%';
+                wrapper.style.height = (naturalHeight * scale) + 'px';
+                isFitted = true;
+                btn.innerHTML = '<i class="fa-solid fa-compress mr-2"></i>Reset View';
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i>Already Fits';
+                setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-expand mr-2"></i>Fit to One Page'; }, 1500);
+            }
+        }
+
+        // Recalculate on window resize if fitted
+        window.addEventListener('resize', () => {
+            if (isFitted) {
+                isFitted = false;
+                toggleFitToScreen();
+            }
+        });
+
+        // ---------- EXPORT / IMPORT ----------
+        function exportData() {
+            const data = {
+                text: {},
+                mechanicSteps,
+                costItems,
+                funnelStages,
+                metrics: {
+                    tradingRevenue: document.getElementById('mTradingRevenue').value,
+                    roi: document.getElementById('mRoi').value,
+                    costPerFtd: document.getElementById('mCostPerFtd').value,
+                    ftdCount: document.getElementById('mFtdCount').value,
+                    ftdAmount: document.getElementById('mFtdAmount').value,
+                    grossDeposits: document.getElementById('mGrossDeposits').value
+                }
+            };
+            textFieldMap.forEach(([inputId]) => { data.text[inputId] = document.getElementById(inputId).value; });
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Campaign_Template.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = JSON.parse(e.target.result);
+                if (data.text) {
+                    textFieldMap.forEach(([inputId]) => {
+                        if (data.text[inputId] !== undefined) document.getElementById(inputId).value = data.text[inputId];
+                    });
+                }
+                if (data.mechanicSteps) mechanicSteps = data.mechanicSteps;
+                if (data.costItems) costItems = data.costItems;
+                if (data.funnelStages) funnelStages = data.funnelStages;
+                if (data.metrics) {
+                    document.getElementById('mTradingRevenue').value = data.metrics.tradingRevenue || 0;
+                    document.getElementById('mRoi').value = data.metrics.roi || 0;
+                    document.getElementById('mCostPerFtd').value = data.metrics.costPerFtd || 0;
+                    document.getElementById('mFtdCount').value = data.metrics.ftdCount || 0;
+                    document.getElementById('mFtdAmount').value = data.metrics.ftdAmount || 0;
+                    document.getElementById('mGrossDeposits').value = data.metrics.grossDeposits || 0;
+                }
+                renderMechanicsInput();
+                renderCostItemsInput();
+                renderFunnelInput();
+                renderAll();
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
